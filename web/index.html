@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>混合直播</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.css">
+    <style>
+      html, body { margin: 0; height: 100%; background: #000; }
+      #toolbar { position: absolute; z-index: 10; left: 12px; top: 12px; right: 12px; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 8px; color: #fff; font-family: system-ui, sans-serif; }
+      #toolbar input, #toolbar button { margin-right: 6px; }
+      #dplayer { position: absolute; inset: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="toolbar">
+      <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+        <label>视频源:</label>
+        <input id="videoInput" placeholder="房间ID/URL或m3u8" style="width:220px"/>
+        <label>音频源:</label>
+        <input id="audioInput" placeholder="房间ID/URL或m3u8" style="width:220px"/>
+        <label>弹幕房间(逗号分隔):</label>
+        <input id="dmRooms" placeholder="如: 111,222" style="width:200px"/>
+        <label>颜色映射 room=#RRGGBB (空格分隔):</label>
+        <input id="dmColors" placeholder="111=#FF5F5F 222=#5F95FF" style="width:240px"/>
+        <button id="applyBtn">应用</button>
+      </div>
+    </div>
+
+    <div id="dplayer"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js"></script>
+    <script>
+      const m3u8Url = new URLSearchParams(location.search).get('src') || '/out/mixed/playlist.m3u8';
+      const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/danmaku';
+
+      const dp = new DPlayer({
+        container: document.getElementById('dplayer'),
+        live: true,
+        video: { url: m3u8Url, type: 'hls' },
+        danmaku: {
+          id: 'mixed-live-local',
+          api: '/api/dplayer',
+          user: 'guest',
+          unlimited: true
+        }
+      });
+
+      // HLS 支持
+      if (!dp.video.canPlayType('application/vnd.apple.mpegurl') && Hls.isSupported()) {
+        // 调整 HLS 缓冲：适度增加 backBuffer 与 liveSync，降低卡顿
+        const hls = new Hls({
+          maxBufferLength: 10,
+          maxMaxBufferLength: 30,
+          liveSyncDuration: 3,
+          liveMaxLatencyDuration: 10,
+          backBufferLength: 10,
+          liveBackBufferLength: 6,
+        });
+        hls.loadSource(m3u8Url);
+        hls.attachMedia(dp.video);
+      }
+
+      // 动态注入弹幕（通过WS实时接收）
+      // DPlayer 4.x 提供 dp.danmaku.draw 接口；若不可用，则使用 send 弹幕到本地池
+      let ws;
+      function connectWS() {
+        ws = new WebSocket(wsUrl);
+        ws.onmessage = (ev) => {
+          try {
+            const data = JSON.parse(ev.data);
+            const text = `[${data.room_id}] ${data.uname}: ${data.msg}`;
+            const color = data.color || '#ffffff';
+            const payload = { text, color, type: 'right', author: data.uname, time: dp.video.currentTime || 0 };
+            if (dp.danmaku && typeof dp.danmaku.draw === 'function') {
+              dp.danmaku.draw(payload);
+            } else if (dp.danmaku && typeof dp.danmaku.send === 'function') {
+              // 一些版本支持 send 注入到内存池
+              dp.danmaku.send(payload);
+            }
+          } catch {}
+        };
+        ws.onclose = () => setTimeout(connectWS, 1000);
+      }
+      connectWS();
+
+      // UI: 应用表单 -> 调后端 API
+      const $ = (id) => document.getElementById(id);
+      $('applyBtn').onclick = async () => {
+        const audio = $('audioInput').value.trim() || '';
+        const video = $('videoInput').value.trim() || '';
+        const rooms = ($('dmRooms').value.trim() || '').split(',').map(s => s.trim()).filter(Boolean);
+        const colorsPairs = ($('dmColors').value.trim() || '').split(/\s+/).filter(Boolean);
+        const colors = {};
+        for (const kv of colorsPairs) {
+          const i = kv.indexOf('=');
+          if (i > 0) {
+            colors[kv.slice(0, i)] = kv.slice(i + 1);
+          }
+        }
+        try {
+          const r1 = await fetch('/api/mix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ audio, video, output_type: 'hls', low_latency: true, transcode_video: false }) });
+          if (!r1.ok) throw new Error('mix failed');
+          await r1.json();
+          const r2 = await fetch('/api/danmaku/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rooms, colors }) });
+          if (!r2.ok) throw new Error('dm start failed');
+          await r2.json();
+          // 更新播放器到新流（本项目固定输出路径，直接reload确保hls重连）
+          location.reload();
+        } catch (e) {
+          alert('启动失败: ' + (e && e.message ? e.message : e));
+        }
+      };
+    </script>
+  </body>
+  </html>
+
+
