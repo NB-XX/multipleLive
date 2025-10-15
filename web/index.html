@@ -6,51 +6,81 @@
     <title>混合直播</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.css">
     <style>
-      html, body { margin: 0; height: 100%; background: #000; }
-      body, input, button { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC", "Microsoft Yahei", sans-serif; }
+      :root{
+        --bg: radial-gradient(1200px 800px at 10% -20%, #1a283f 0%, #0b0e14 55%);
+        --panel-bg: rgba(22,24,28,.66);
+        --panel-border: rgba(255,255,255,.08);
+        --elev: 0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
+        --text-1:#e6e7eb; --text-2:#b7bac2; --muted:#8c91a1;
+        --accent:#4c8dff; --accent-2:#5fd1ff; --danger:#ef4444; --ok:#22c55e; --warn:#f59e0b;
+        --field-bg:#0f1117; --field-bd:rgba(255,255,255,.08);
+      }
+      html, body { margin: 0; height: 100%; background: var(--bg); overflow-x: hidden; }
+      body, input, button { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC", "Microsoft Yahei", sans-serif; color: var(--text-1); }
       #app { position: absolute; inset: 0; display: flex; }
-      #main { position: relative; flex: 1; background: #000; }
+      #main { position: relative; flex: 1; }
       #dplayer { position: absolute; inset: 0; }
-      #customDmCanvas { position:absolute; inset:0; z-index: 9; pointer-events: none; }
-      #sidebar { width: 340px; background: rgba(20,20,20,.92); color: #fff; border-left: 1px solid rgba(255,255,255,.12); display: flex; flex-direction: column; transition: transform .2s ease; }
-      #sidebar.closed { transform: translateX(312px); }
-      .sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 10px; border-bottom: 1px solid rgba(255,255,255,.08); }
-      .sidebar-header span { font-weight: 600; color: #e6e6e6; }
-      .sidebar-header button { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.28); border-radius: 4px; width: 28px; height: 28px; cursor: pointer; }
-      .sidebar-content { padding: 10px; overflow: auto; flex: 1; }
-      .block { margin-bottom: 12px; }
-      .block h3 { margin: 8px 0; font-size: 14px; color: #dadada; font-weight: 600; }
-      .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
-      .form-row label { font-size: 12px; color: #bdbdbd; }
-      .form-row input { padding: 6px 8px; background: #1b1b1b; color: #fff; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; outline: none; }
-      .row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-      .row input.room { flex: 1; padding: 6px 8px; background: #1b1b1b; color: #fff; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; }
-      .row input.color { width: 38px; height: 28px; padding: 0; border: none; background: transparent; }
-      .row button.remove { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.28); border-radius: 4px; padding: 4px 6px; cursor: pointer; }
-      .presets { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
-      .presets span { font-size: 12px; color: #bdbdbd; }
-      .preset-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; cursor: pointer; }
-      .status-row { display:flex; align-items:center; gap:8px; margin:6px 0; }
+      /* 将侧栏改为悬浮覆盖，并可完全让出布局空间 */
+      #sidebar { position: fixed; right: 0; top: 0; bottom: 0; width: 360px; z-index: 5; background: var(--panel-bg); border-left: 1px solid var(--panel-border); display: flex; flex-direction: column; backdrop-filter: blur(12px); box-shadow: var(--elev); transform: translateX(0); transition: transform .2s ease; }
+      #sidebar.closed { transform: translateX(100%); }
+      /* 悬浮折叠按钮（独立于侧栏，防止侧栏完全隐藏后不可打开） */
+      #sidebarToggle { position: fixed; right: 12px; top: 12px; z-index: 6; height: 36px; width: 36px; border-radius: 10px; border: 1px solid var(--panel-border); background: rgba(0,0,0,.35); color: var(--text-1); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: var(--elev); }
+      #sidebar.closed ~ #sidebarToggle { right: 12px; }
+      .sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 14px; border-bottom: 1px solid var(--panel-border); }
+      .sidebar-header span { font-weight: 700; color: var(--text-1); letter-spacing: .3px; }
+      .sidebar-header button { background: transparent; color: var(--text-1); border: 1px solid var(--panel-border); border-radius: 8px; width: 32px; height: 32px; cursor: pointer; transition: .2s ease; }
+      .sidebar-header button:hover { border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.04); }
+      .sidebar-content { padding: 12px; overflow: auto; flex: 1; }
+      .block { margin-bottom: 14px; padding: 12px; border: 1px solid var(--panel-border); border-radius: 12px; background: rgba(255,255,255,.02); box-shadow: inset 0 1px 0 rgba(255,255,255,.02); }
+      .block h3 { margin: 0 0 10px 0; font-size: 13px; color: var(--text-2); font-weight: 700; letter-spacing: .3px; text-transform: uppercase; }
+      .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+      .form-row label { font-size: 12px; color: var(--muted); }
+      .form-row input { height: 36px; padding: 6px 10px; background: rgba(25,28,35,.85); color: var(--text-1); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; outline: none; transition: .15s ease; }
+      .form-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(76,141,255,.18); background: rgba(30,34,42,.95); }
+      .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+      .row input.room { flex: 1; height: 36px; padding: 6px 10px; background: rgba(25,28,35,.85); color: var(--text-1); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; }
+      .row input.room:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(76,141,255,.18); background: rgba(30,34,42,.95); }
+      .row input.color { width: 40px; height: 36px; padding: 0; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); background: rgba(25,28,35,.85); }
+      .row button.remove { width: 36px; height: 36px; border-radius: 10px; background: transparent; color: var(--text-1); border: 1px solid var(--panel-border); cursor: pointer; transition: .2s ease; display:flex; align-items:center; justify-content:center; }
+      .row button.remove:hover { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.2); }
+      .presets { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+      .presets span { font-size: 12px; color: var(--muted); }
+      .preset-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255,255,255,.7); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.25); transition: transform .1s ease; }
+      .preset-dot:hover { transform: translateY(-1px); }
+      .status-row { display:flex; align-items:center; gap:10px; margin:8px 0; padding: 6px 8px; border-radius: 10px; background: rgba(255,255,255,.02); border: 1px solid var(--panel-border); }
       .status-row .light { width:10px; height:10px; border-radius:50%; background:#6c757d; box-shadow:0 0 0 2px rgba(255,255,255,.08) inset; }
-      .status-row .light.ok { background:#28a745; }
-      .status-row .light.warn { background:#ffc107; }
-      .status-row .light.err { background:#dc3545; }
-      .status-text { font-size:12px; color:#bdbdbd; }
-      button.primary { width: 100%; padding: 8px 10px; background: #007bff; border: none; color: #fff; border-radius: 6px; cursor: pointer; }
-      button.primary:hover { filter: brightness(1.05); }
-      @media (max-width: 900px) { #app { flex-direction: column; } #sidebar { width: 100%; } #sidebar.closed { transform: translateY(calc(100% - 32px)); } }
+      .status-row .light.ok { background:var(--ok); }
+      .status-row .light.warn { background:var(--warn); }
+      .status-row .light.err { background:var(--danger); }
+      .status-text { font-size:12px; color:var(--text-2); }
+      .btn { height: 38px; border-radius: 10px; border: 1px solid var(--panel-border); background: rgba(255,255,255,.03); color: var(--text-1); padding: 8px 12px; cursor: pointer; transition: .2s ease; }
+      .btn:hover { background: rgba(255,255,255,.06); }
+      .btn-primary { background: linear-gradient(180deg, var(--accent), #3a7fff); border: none; color: white; box-shadow: 0 6px 16px rgba(76,141,255,.35); }
+      .btn-primary:hover { filter: brightness(1.05); }
+      .btn-danger { background: linear-gradient(180deg, #ff5a5a, #ef4444); border: none; color: white; box-shadow: 0 6px 16px rgba(239,68,68,.35); }
+      .btn-ghost { background: transparent; border: 1px dashed var(--panel-border); }
+      .btn-ghost:hover { background: rgba(255,255,255,.04); }
+      .btn-block { width: 100%; }
+      .actions { display: flex; flex-direction: column; gap: 10px; }
+      @media (max-width: 900px) {
+        #app { flex-direction: column; }
+        #sidebar { width: 100%; right: 0; left: 0; }
+        #sidebar.closed { transform: translateY(100%); }
+        #sidebarToggle { top: auto; bottom: 12px; }
+      }
+      /* 减慢 DPlayer 弹幕滚动速度 */
+      .dplayer .dplayer-danmaku .dplayer-danmaku-move,
+      .dplayer .dplayer-danmaku-move { animation-duration: 9s !important; }
     </style>
   </head>
   <body>
     <div id="app">
       <div id="main">
         <div id="dplayer"></div>
-        <canvas id="customDmCanvas"></canvas>
       </div>
       <div id="sidebar" class="open">
         <div class="sidebar-header">
           <span>配置</span>
-          <button id="toggleSidebarBtn" title="收起/展开">❯</button>
         </div>
         <div class="sidebar-content">
           <section class="block">
@@ -64,22 +94,22 @@
               <input id="audioInput" placeholder="房间ID/URL或m3u8"/>
             </div>
             <div class="form-row">
-              <label>播放模式</label>
-              <select id="playMode">
-                <option value="low">低延迟</option>
-                <option value="stable">稳定</option>
-              </select>
+              <label>B站 SESSDATA（可选，仅用于原画）</label>
+              <div style="display:flex;gap:6px;">
+                <input id="sessInput" placeholder="留空则尝试自动获取" style="flex:1;"/>
+                <button id="tryAutoSess" class="btn" style="padding:0 10px;white-space:nowrap;">自动获取</button>
+              </div>
             </div>
-          </section>
-          <section class="block">
-            <h3>运行状态</h3>
-            <div class="status-row"><span>视频</span><div id="lightVideo" class="light"></div><span id="textVideo" class="status-text">未启动</span></div>
-            <div class="status-row"><span>弹幕</span><div id="lightDM" class="light"></div><span id="textDM" class="status-text">未连接</span></div>
+            <div id="sessHint" style="display:none;padding:8px;margin-top:6px;border-radius:8px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);font-size:12px;color:#f59e0b;">
+              ⚠️ 未检测到 B 站登录，仅支持 480P 画质。请在<a href="https://live.bilibili.com/" target="_blank" style="color:var(--accent-2);text-decoration:underline;">B站直播</a>登录后再试，或手动填写 SESSDATA。
+            </div>
           </section>
           <section class="block">
             <h3>弹幕来源与颜色</h3>
             <div id="dmSourceList"></div>
-            <button id="addSourceBtn" style="margin-top:6px;">添加来源</button>
+            <button id="addSourceBtn" class="btn btn-ghost btn-block" style="margin-top:8px;">
+              ＋ 添加来源
+            </button>
             <div class="presets">
               <span>预设颜色:</span>
               <div class="preset-dot" data-color="#000000" style="background:#000000;"></div>
@@ -90,25 +120,44 @@
             </div>
           </section>
           <section class="block">
-            <h3>弹幕渲染</h3>
-            <div class="row" style="justify-content:space-between;">
-              <label style="margin:0;">使用自渲染弹幕（彩色边框）</label>
-              <input id="useCustomDm" type="checkbox" checked>
+            <h3>运行状态</h3>
+            <div class="status-row"><span>视频</span><div id="lightVideo" class="light"></div><span id="textVideo" class="status-text">未启动</span></div>
+            <div class="status-row"><span>音频</span><div id="lightAudio" class="light"></div><span id="textAudio" class="status-text">未启动</span></div>
+            <div class="status-row"><span>弹幕</span><div id="lightDM" class="light"></div><span id="textDM" class="status-text">未连接</span></div>
+          </section>
+          <section class="block">
+            <h3>音量控制</h3>
+            <div class="form-row">
+              <label>音频流音量 <span id="audioVolLabel">100%</span></label>
+              <input id="audioVolSlider" type="range" min="0" max="100" value="100" style="height:auto;padding:0;"/>
             </div>
           </section>
-          <div class="row" style="gap:8px;">
-            <button id="applyBtn" class="primary" style="flex:1;">开始</button>
-            <button id="stopBtn" style="flex:1; display:none; background:#dc3545; border:none; color:#fff; border-radius:6px; padding:8px 10px; cursor:pointer;">停止</button>
-          </div>
+          <section class="block">
+            <h3>同步控制</h3>
+            <div style="font-size:12px;color:var(--text-2);margin-bottom:10px;">
+              <div>视频延迟: <span id="videoDelayText" style="color:var(--accent-2);">--</span></div>
+              <div>音频延迟: <span id="audioDelayText" style="color:var(--accent-2);">--</span></div>
+              <div>差值: <span id="diffDelayText" style="font-weight:600;">--</span></div>
+            </div>
+            <div class="form-row">
+              <label>音频时间偏移 <span id="offsetLabel">0.0s</span></label>
+              <input id="offsetSlider" type="range" min="-50" max="50" value="0" step="1" style="height:auto;padding:0;"/>
+            </div>
+            <button id="autoAlignBtn" class="btn btn-block" style="margin-top:8px;">自动对齐</button>
+          </section>
+          
+          <button id="applyBtn" class="btn btn-primary btn-block" style="margin-bottom:10px;">开始</button>
+          <button id="stopBtn" class="btn btn-danger btn-block" style="display:none;margin-bottom:10px;">停止</button>
         </div>
       </div>
+      <button id="sidebarToggle" title="收起/展开">≡</button>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js"></script>
     <script>
       const m3u8Url = new URLSearchParams(location.search).get('src') || '/out/mixed/playlist.m3u8';
-      const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/danmaku';
+       const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/danmaku';
       const hexToInt = (hex) => {
         try {
           const s = String(hex || '#ffffff').replace('#', '');
@@ -119,6 +168,14 @@
 
       // 运行状态与UI控制
       let isRunning = false;
+      let isActivePlayback = true;
+      let lastPausedAt = 0;
+      function setActivePlayback(on) {
+        isActivePlayback = !!on;
+        if (isActivePlayback) {
+          try { dp.danmaku.clear(); } catch {}
+        }
+      }
       function setRunning(on) {
         isRunning = !!on;
         const videoInput = document.getElementById('videoInput');
@@ -151,6 +208,16 @@
         else if (kind === 'err') { light.classList.add('err'); text.textContent = '异常'; }
         else { text.textContent = '未启动'; }
       }
+      function setAudioStatus(kind) {
+        const light = document.getElementById('lightAudio');
+        const text = document.getElementById('textAudio');
+        if (!light || !text) return;
+        light.className = 'light';
+        if (kind === 'ok') { light.classList.add('ok'); text.textContent = '获取中'; }
+        else if (kind === 'warn') { light.classList.add('warn'); text.textContent = '重连中'; }
+        else if (kind === 'err') { light.classList.add('err'); text.textContent = '异常'; }
+        else { text.textContent = '未启动'; }
+      }
       function setDMStatus(kind) {
         const light = document.getElementById('lightDM');
         const text = document.getElementById('textDM');
@@ -162,35 +229,81 @@
         else { text.textContent = '未连接'; }
       }
 
-      const dp = new DPlayer({
+       const dp = new DPlayer({
         container: document.getElementById('dplayer'),
         live: true,
+        danmaku: true,
+        apiBackend: {
+          read: function (options) {
+            // 直播模式不从后端读取历史弹幕，直接返回空
+            options.success([]);
+          },
+          send: function (options) {
+            // 禁止用户发送弹幕（只观看）
+            console.log('Send disabled in live mode');
+            options.success();
+          },
+        },
         video: { url: m3u8Url, type: 'hls' },
-        danmaku: {
-          id: 'mixed-live-local',
-          api: '/api/dplayer',
-          user: 'guest',
-          unlimited: true
+      });
+      try { dp.danmaku.show(); dp.danmaku.opacity(0.9); } catch {}
+
+      // 取消自动追帧：不再在播放时强制跳到最新点
+
+      // 监听 DPlayer 播放/暂停，同步音频元素
+      try {
+        dp.video.addEventListener('pause', () => {
+          try { if (audioEl) { audioEl.pause(); setAudioStatus('warn'); } } catch {}
+          lastPausedAt = Date.now();
+          setActivePlayback(false);
+        });
+        dp.video.addEventListener('play', () => {
+          try {
+            if (audioEl) {
+              audioEl.play().catch(() => {});
+              setAudioStatus('ok');
+            }
+          } catch {}
+          // 如果暂停时间较长，清理积压弹幕后再继续
+          if (Date.now() - lastPausedAt > 1000) {
+            setActivePlayback(true);
+          } else {
+            isActivePlayback = true;
+          }
+        });
+      } catch {}
+
+      // 标签可见性变化：隐藏时标记为非活动，丢弃弹幕；恢复时清空历史
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          setActivePlayback(false);
+        } else {
+          setActivePlayback(true);
         }
       });
 
-      // HLS 支持
-      let hls = null;
+       // 隐藏的音频播放器（DPlayer 或原生 <audio> + hls）
+      let audioDp = null; // 可选的第二个 DPlayer（隐藏）
+      let audioHls = null; // 原生音频元素的 hls.js 实例
+      let hls = null; // 视频 hls.js 实例
       let lastFragAt = 0;
+      let lastAudioFragAt = 0;
+       let audioEl = null;  // 原生音频元素
+
+      // HLS 支持
       const WARN_GRACE_MS = 6000;
-      function initHls(playMode) {
+      function initVideoHls(srcUrl) {
         if (!Hls.isSupported()) return null;
-        const isLow = playMode !== 'stable';
         const conf = {
-          maxBufferLength: isLow ? 10 : 30,
-          maxMaxBufferLength: isLow ? 30 : 120,
-          liveSyncDuration: isLow ? 3 : 6,
-          liveMaxLatencyDuration: isLow ? 10 : 20,
-          backBufferLength: isLow ? 10 : 20,
-          liveBackBufferLength: isLow ? 6 : 12,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 120,
+          liveSyncDuration: 6,
+          liveMaxLatencyDuration: 20,
+          backBufferLength: 20,
+          liveBackBufferLength: 12,
         };
         const inst = new Hls(conf);
-        inst.loadSource(m3u8Url);
+        inst.loadSource(srcUrl);
         inst.attachMedia(dp.video);
         inst.on(Hls.Events.MANIFEST_PARSED, () => { if (isRunning) { lastFragAt = Date.now(); setVideoStatus('ok'); } });
         inst.on(Hls.Events.FRAG_LOADED,     () => { if (isRunning) { lastFragAt = Date.now(); setVideoStatus('ok'); } });
@@ -201,42 +314,23 @@
         });
         return inst;
       }
-      if (!dp.video.canPlayType('application/vnd.apple.mpegurl') && Hls.isSupported()) {
-        hls = initHls(document.getElementById('playMode').value);
-      } else {
-        // 原生播放事件作为状态指示（带宽裕判断）
-        dp.video.addEventListener('playing', () => { if (isRunning) { lastFragAt = Date.now(); setVideoStatus('ok'); } });
-        dp.video.addEventListener('waiting', () => { if (isRunning && Date.now() - lastFragAt > WARN_GRACE_MS) setVideoStatus('warn'); });
-        dp.video.addEventListener('error', () => { if (isRunning) setVideoStatus('err'); });
-      }
 
       // 动态注入弹幕（通过WS实时接收）
-      // DPlayer 4.x 提供 dp.danmaku.draw 接口；若不可用，则使用 send 弹幕到本地池
+      // DPlayer 提供 dp.danmaku.draw 接口；若不可用，则使用 send 注入到本地池
       let ws;
       function connectWS() {
         ws = new WebSocket(wsUrl);
         ws.onopen = () => { if (isRunning) setDMStatus('ok'); };
         ws.onmessage = (ev) => {
           try {
+            if (!isActivePlayback) return; // 丢弃非活动期间的弹幕，避免积压
             const data = JSON.parse(ev.data);
             const text = data.msg || '';
             const colorHex = data.color || '#ffffff';
-            const colorInt = hexToInt(colorHex);
-            const nowTime = dp.video && typeof dp.video.currentTime === 'number' ? dp.video.currentTime : 0;
-            const useCustom = document.getElementById('useCustomDm') && document.getElementById('useCustomDm').checked;
-            if (!useCustom && dp.danmaku && typeof dp.danmaku.draw === 'function') {
-              // 优先对象格式（color使用hex），再回退number与数组格式
-              let drawn = false;
-              try { dp.danmaku.draw({ text, color: colorHex, type: 0, time: nowTime }); drawn = true; } catch {}
-              if (!drawn) { try { dp.danmaku.draw({ text, color: colorInt, type: 0, time: nowTime }); drawn = true; } catch {} }
-              if (!drawn) { try { dp.danmaku.draw([nowTime, 0, colorInt, '', text]); drawn = true; } catch {} }
-            } else if (dp.danmaku && typeof dp.danmaku.send === 'function') {
-              // 一些版本支持 send 注入到内存池
-              const sendPayload = { id: 'mixed-live-local', author: '', text, color: colorHex, type: 0, time: nowTime };
-              dp.danmaku.send(sendPayload);
-            } else if (useCustom) {
-              // 自渲染：将弹幕加入渲染队列
-              pushCustomDanmaku(text, colorHex);
+            // 直接使用 dp.danmaku.draw() 绘制弹幕（DPlayer 直播推荐方式）
+            if (dp.danmaku && typeof dp.danmaku.draw === 'function') {
+              const danmaku = { text, color: colorHex, type: 'right' };
+              dp.danmaku.draw(danmaku);
             }
             if (isRunning) setDMStatus('ok');
           } catch {}
@@ -249,11 +343,134 @@
       // 侧栏逻辑与配置交互
       const $ = (id) => document.getElementById(id);
       const sidebar = $('sidebar');
-      const toggleBtn = $('toggleSidebarBtn');
+      const toggleBtn = $('sidebarToggle');
       toggleBtn.onclick = () => {
         const closed = sidebar.classList.toggle('closed');
-        toggleBtn.textContent = closed ? '❮' : '❯';
+        toggleBtn.textContent = closed ? '☰' : '✕';
       };
+
+      // 尝试自动获取 SESSDATA：利用第三方 iframe 或提示用户手动复制
+      const tryAutoSessBtn = $('tryAutoSess');
+      const sessInput = $('sessInput');
+      const sessHint = $('sessHint');
+      async function autoFetchSess() {
+        // 浏览器安全限制：无法直接读取第三方 Cookie（bilibili.com），只能通过以下途径：
+        // 1. 用户已在当前浏览器登录 B 站且打开本地页面，尝试通过隐藏 iframe 加载 B 站页面并从 postMessage 接收
+        // 2. 浏览器扩展/用户脚本（Tampermonkey）注入代码，从 B 站页面直接读取 document.cookie
+        // 3. 用户手动复制（当前默认）
+        // 这里实现方案1的简化版：检测 localStorage 是否已缓存，或提示用户前往 B 站
+        let cached = (localStorage.getItem('bili_sessdata') || '').trim();
+        if (cached) {
+          sessInput.value = cached;
+          sessHint.style.display = 'none';
+          return;
+        }
+        // 尝试通过隐藏 iframe + postMessage（需在 B 站页面注入配合脚本，这里先提示）
+        sessHint.style.display = 'block';
+        alert('自动获取需要：\n1. 在浏览器已登录 B 站账号；\n2. 打开 https://live.bilibili.com/ 并在控制台运行：\n\nlocalStorage.setItem("bili_sessdata", document.cookie.match(/SESSDATA=([^;]+)/)?.[1] || "");\n\n然后刷新本页面即可自动读取。\n\n或直接手动填写 SESSDATA。');
+      }
+      tryAutoSessBtn.onclick = autoFetchSess;
+      // 页面加载时自动尝试读取缓存
+      try {
+        const cached = (localStorage.getItem('bili_sessdata') || '').trim();
+        if (cached) {
+          sessInput.value = cached;
+        } else {
+          sessHint.style.display = 'block';
+        }
+      } catch {}
+
+      // 音频音量控制
+      const audioVolSlider = $('audioVolSlider');
+      const audioVolLabel = $('audioVolLabel');
+      audioVolSlider.oninput = () => {
+        const vol = parseInt(audioVolSlider.value || '100', 10);
+        audioVolLabel.textContent = vol + '%';
+        if (audioEl) {
+          audioEl.volume = vol / 100.0;
+        }
+      };
+
+      // 延迟监控与同步控制
+      const videoDelayText = $('videoDelayText');
+      const audioDelayText = $('audioDelayText');
+      const diffDelayText = $('diffDelayText');
+      const offsetSlider = $('offsetSlider');
+      const offsetLabel = $('offsetLabel');
+      const autoAlignBtn = $('autoAlignBtn');
+      let cumulativeOffset = 0; // 累积偏移量
+
+      function getDelay(media) {
+        if (!media) return null;
+        try {
+          const s = media.seekable;
+          if (s && s.length > 0) {
+            const liveEdge = s.end(s.length - 1);
+            const current = media.currentTime || 0;
+            return liveEdge - current;
+          }
+        } catch {}
+        return null;
+      }
+
+      function updateDelayDisplay() {
+        if (!isRunning) {
+          videoDelayText.textContent = '--';
+          audioDelayText.textContent = '--';
+          diffDelayText.textContent = '--';
+          return;
+        }
+        const vDelay = getDelay(dp.video);
+        const aDelay = getDelay(audioEl);
+        
+        videoDelayText.textContent = vDelay !== null ? vDelay.toFixed(1) + 's' : '--';
+        audioDelayText.textContent = aDelay !== null ? aDelay.toFixed(1) + 's' : '--';
+        
+        if (vDelay !== null && aDelay !== null) {
+          const diff = aDelay - vDelay; // 正值=音频超前，负值=音频滞后
+          const absDiff = Math.abs(diff);
+          let color = 'var(--ok)';
+          if (absDiff > 2.0) color = 'var(--danger)';
+          else if (absDiff > 0.5) color = 'var(--warn)';
+          diffDelayText.style.color = color;
+          diffDelayText.textContent = (diff >= 0 ? '+' : '') + diff.toFixed(1) + 's';
+        } else {
+          diffDelayText.textContent = '--';
+        }
+      }
+
+      offsetSlider.oninput = () => {
+        const val = parseInt(offsetSlider.value || '0', 10);
+        const offsetSec = val / 10.0; // -5.0 ~ +5.0
+        offsetLabel.textContent = (offsetSec >= 0 ? '+' : '') + offsetSec.toFixed(1) + 's';
+        if (audioEl && isRunning) {
+          try {
+            const delta = offsetSec - cumulativeOffset;
+            audioEl.currentTime += delta;
+            cumulativeOffset = offsetSec;
+          } catch {}
+        }
+      };
+
+      autoAlignBtn.onclick = () => {
+        if (!isRunning || !audioEl || !dp.video) return;
+        try {
+          const vDelay = getDelay(dp.video);
+          const aDelay = getDelay(audioEl);
+          if (vDelay !== null && aDelay !== null) {
+            const diff = aDelay - vDelay;
+            // 调整音频 currentTime 使其与视频对齐
+            audioEl.currentTime -= diff;
+            // 重置滑块与累积偏移
+            offsetSlider.value = '0';
+            offsetLabel.textContent = '0.0s';
+            cumulativeOffset = 0;
+          }
+        } catch {}
+      };
+
+      // 周期更新延迟显示
+      setInterval(updateDelayDisplay, 1000);
 
       const dmSourceList = $('dmSourceList');
       const addSourceBtn = $('addSourceBtn');
@@ -261,11 +478,11 @@
       function addSourceRow(room = '', color = '#ffffff') {
         const row = document.createElement('div');
         row.className = 'row';
-        row.innerHTML = `
-          <input class="room" placeholder="房间ID/URL" value="${room.replace(/"/g, '&quot;')}">
-          <input class="color" type="color" value="${color}">
-          <button class="remove" title="删除">✕</button>
-        `;
+         row.innerHTML = `
+           <input class="room" placeholder="房间ID/URL" value="${room.replace(/"/g, '&quot;')}">
+           <input class="color" type="color" value="${color}">
+           <button class="remove" title="删除">🗑</button>
+         `;
         const roomInput = row.querySelector('input.room');
         const colorInput = row.querySelector('input.color');
         const removeBtn = row.querySelector('button.remove');
@@ -300,87 +517,134 @@
       });
 
       // 应用配置 -> 后端 API
-      $('applyBtn').onclick = async () => {
+       $('applyBtn').onclick = async () => {
         const audio = ($('audioInput').value || '').trim();
         const video = ($('videoInput').value || '').trim();
-        const playMode = (document.getElementById('playMode').value || 'low');
+        const frontMix = true; // 固定前端直连
         const srcs = getSources();
-        const rooms = srcs.map(s => s.room);
+        // 先解析所有弹幕房间为真实ID，再构造 colors 映射
+        const resolveRoomOnly = async (source) => {
+          try {
+            const res = await fetch('/api/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source }) });
+            const j = await res.json();
+            if (j.ok && j.room_id) return j.room_id;
+          } catch {}
+          return null;
+        };
+        const roomsResolved = [];
         const colors = {};
-        for (const s of srcs) colors[s.room] = s.color || '#ffffff';
+        for (const s of srcs) {
+          const rid = await resolveRoomOnly(s.room);
+          if (rid) {
+            roomsResolved.push(rid);
+            colors[rid] = s.color || '#ffffff';
+          }
+        }
+        const rooms = roomsResolved;
+        // 临时保存 SESSDATA 到 localStorage，便于解析时携带
         try {
-          const isLow = playMode !== 'stable';
-          const r1 = await fetch('/api/mix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ audio, video, output_type: 'hls', low_latency: isLow, transcode_video: !isLow }) });
-          if (!r1.ok) throw new Error('mix failed');
-          await r1.json();
+          const sess = (document.getElementById('sessInput').value || '').trim();
+          if (sess) localStorage.setItem('bili_sessdata', sess);
+        } catch {}
+        try {
+          const isLow = true; // 固定参数
+          if (frontMix) {
+             // 前端直连：分别解析两路 m3u8，然后：视频播放器静音=false，音频播放器只播放音频且隐藏画面
+             const resolve = async (source) => {
+               // 可从 localStorage 读取 SESSDATA 以请求原画
+               const sessdata = (localStorage.getItem('bili_sessdata') || '').trim();
+               const res = await fetch('/api/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source, sessdata }) });
+               const j = await res.json();
+               if (!j.ok) throw new Error(j.error || 'resolve failed');
+               return j.url;
+             };
+             const vUrl = await resolve(video);
+             const aUrl = await resolve(audio);
+             // 切主播放器
+             try {
+              if (hls) { try { hls.destroy(); } catch {} hls = null; }
+              hls = initVideoHls(vUrl);
+              dp.video.muted = true; // 只用作画面
+              try {
+                dp.video.addEventListener('playing', () => { if (isRunning) setVideoStatus('ok'); });
+                dp.video.addEventListener('waiting', () => { if (isRunning) setVideoStatus('warn'); });
+                dp.video.addEventListener('error',   () => { if (isRunning) setVideoStatus('err'); });
+              } catch {}
+             } catch {}
+
+             // 准备隐藏音频播放器
+             try {
+               if (!audioEl) {
+                 audioEl = document.createElement('audio');
+                 audioEl.style.display = 'none';
+                 document.body.appendChild(audioEl);
+               }
+              if (audioHls) { try { audioHls.destroy(); } catch {} audioHls = null; }
+              if (!audioEl.canPlayType('application/vnd.apple.mpegurl') && Hls.isSupported()) {
+                audioHls = new Hls({ maxBufferLength: 30, liveSyncDuration: 6, liveMaxLatencyDuration: 20, maxMaxBufferLength: 120, backBufferLength: 20, liveBackBufferLength: 12 });
+                audioHls.loadSource(aUrl);
+                audioHls.attachMedia(audioEl);
+                audioHls.on(Hls.Events.MANIFEST_PARSED, () => { if (isRunning) { lastAudioFragAt = Date.now(); setAudioStatus('ok'); } });
+                audioHls.on(Hls.Events.FRAG_LOADED,     () => { if (isRunning) { lastAudioFragAt = Date.now(); setAudioStatus('ok'); } });
+                audioHls.on(Hls.Events.ERROR, (_e, data) => {
+                  if (!isRunning) return;
+                  if (data && data.fatal) { setAudioStatus('err'); return; }
+                  if (Date.now() - lastAudioFragAt > WARN_GRACE_MS) setAudioStatus('warn');
+                });
+              } else {
+                audioEl.src = aUrl;
+                audioEl.addEventListener('playing', () => { if (isRunning) setAudioStatus('ok'); });
+                audioEl.addEventListener('waiting', () => { if (isRunning) setAudioStatus('warn'); });
+                audioEl.addEventListener('error',   () => { if (isRunning) setAudioStatus('err'); });
+              }
+               audioEl.muted = false;
+               await audioEl.play().catch(()=>{});
+             } catch {}
+           }
           const r2 = await fetch('/api/danmaku/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rooms, colors }) });
           if (!r2.ok) throw new Error('dm start failed');
           await r2.json();
           setRunning(true);
-          setVideoStatus('warn');
+          setVideoStatus('warn'); setAudioStatus('warn');
           setDMStatus('warn');
-          try {
-            if (hls) { try { hls.destroy(); } catch {}; }
-            if (!dp.video.canPlayType('application/vnd.apple.mpegurl') && Hls.isSupported()) {
-              hls = initHls(playMode);
-            }
-          } catch {}
+          // 固定前端模式，无需后续切换
           try { if (dp && dp.play) dp.play(); } catch {}
         } catch (e) {
           alert('启动失败: ' + (e && e.message ? e.message : e));
         }
       };
 
-      // 自渲染弹幕：简单右向左滚动，描边颜色来自 colorHex
-      const canvas = document.getElementById('customDmCanvas');
-      const ctx = canvas.getContext('2d');
-      function resizeCanvas() {
-        if (!canvas) return;
-        const rect = canvas.parentElement.getBoundingClientRect();
-        canvas.width = Math.floor(rect.width);
-        canvas.height = Math.floor(rect.height);
-      }
-      window.addEventListener('resize', resizeCanvas);
-      const dmQueue = [];
-      function pushCustomDanmaku(text, colorHex) {
-        if (!canvas) return;
-        const fontSize = Math.max(18, Math.floor(canvas.height / 24));
-        ctx.save();
-        ctx.font = `${fontSize}px sans-serif`;
-        const textWidth = ctx.measureText(text).width;
-        ctx.restore();
-        const y = Math.max(fontSize + 4, Math.random() * Math.max(1, canvas.height - fontSize - 8));
-        dmQueue.push({ text, colorHex, x: canvas.width + 20, y, speed: 1.2 + Math.random() * 0.8, fontSize, textWidth });
-      }
-      function renderLoop() {
-        requestAnimationFrame(renderLoop);
-        if (!document.getElementById('useCustomDm')?.checked) { return; }
-        resizeCanvas();
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        for (const item of dmQueue) {
-          item.x -= item.speed * 2.0;
-          ctx.lineWidth = Math.max(2, Math.floor(item.fontSize / 9));
-          ctx.strokeStyle = item.colorHex || '#ffffff';
-          ctx.fillStyle = '#ffffff';
-          ctx.font = `${item.fontSize}px sans-serif`;
-          ctx.strokeText(item.text, item.x, item.y);
-          ctx.fillText(item.text, item.x, item.y);
-        }
-        // 移除已经完全离开屏幕的弹幕
-        for (let i = dmQueue.length - 1; i >= 0; i--) {
-          if (dmQueue[i].x + dmQueue[i].textWidth < -40) dmQueue.splice(i, 1);
-        }
-      }
-      renderLoop();
+      // 取消自渲染弹幕，统一使用 DPlayer 弹幕
 
       // 停止：调用后端 /api/stop 并恢复表单
-      document.getElementById('stopBtn').onclick = async () => {
+       document.getElementById('stopBtn').onclick = async () => {
         try {
           const r = await fetch('/api/stop', { method: 'POST' });
           if (!r.ok) throw new Error('stop failed');
         } catch (e) {
           // 忽略错误，仍然本地复位
         }
+         try { if (audioHls) { audioHls.destroy(); audioHls = null; } } catch {}
+         try {
+           if (audioEl) {
+             audioEl.pause();
+             audioEl.removeAttribute('src');
+             audioEl.load?.();
+             audioEl.remove();
+             audioEl = null;
+           }
+         } catch {}
+         setAudioStatus();
+         try {
+           // 同步停止主播放器
+           if (hls) { try { hls.destroy(); } catch {} hls = null; }
+           if (dp && dp.video) {
+             dp.pause?.();
+             dp.video.pause();
+             dp.video.removeAttribute('src');
+             try { dp.video.load(); } catch {}
+           }
+         } catch {}
         setRunning(false);
         setVideoStatus();
         setDMStatus();
