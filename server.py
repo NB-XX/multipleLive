@@ -132,12 +132,11 @@ async def api_start_dm(req: web.Request) -> web.Response:
             for c in to_remove:
                 if c in state.ws_clients:
                     state.ws_clients.remove(c)
-            # 同步写入 DPlayer 内存池，供首次加载拉取历史
-            text = f"[{item.room_id}] {item.uname}: {item.msg}"
+            # 同步写入 DPlayer 内存池（仅内容，不含房间号/用户名）
             state.append_dplayer(
                 pool_id="mixed-live-local",
-                author=item.uname,
-                text=text,
+                author='',
+                text=item.msg,
                 color_hex=item.color,
                 dm_type=0,
                 at_time=0.0,

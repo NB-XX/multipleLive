@@ -7,33 +7,160 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.css">
     <style>
       html, body { margin: 0; height: 100%; background: #000; }
-      #toolbar { position: absolute; z-index: 10; left: 12px; top: 12px; right: 12px; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 8px; color: #fff; font-family: system-ui, sans-serif; }
-      #toolbar input, #toolbar button { margin-right: 6px; }
+      body, input, button { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC", "Microsoft Yahei", sans-serif; }
+      #app { position: absolute; inset: 0; display: flex; }
+      #main { position: relative; flex: 1; background: #000; }
       #dplayer { position: absolute; inset: 0; }
+      #customDmCanvas { position:absolute; inset:0; z-index: 9; pointer-events: none; }
+      #sidebar { width: 340px; background: rgba(20,20,20,.92); color: #fff; border-left: 1px solid rgba(255,255,255,.12); display: flex; flex-direction: column; transition: transform .2s ease; }
+      #sidebar.closed { transform: translateX(312px); }
+      .sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 10px; border-bottom: 1px solid rgba(255,255,255,.08); }
+      .sidebar-header span { font-weight: 600; color: #e6e6e6; }
+      .sidebar-header button { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.28); border-radius: 4px; width: 28px; height: 28px; cursor: pointer; }
+      .sidebar-content { padding: 10px; overflow: auto; flex: 1; }
+      .block { margin-bottom: 12px; }
+      .block h3 { margin: 8px 0; font-size: 14px; color: #dadada; font-weight: 600; }
+      .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+      .form-row label { font-size: 12px; color: #bdbdbd; }
+      .form-row input { padding: 6px 8px; background: #1b1b1b; color: #fff; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; outline: none; }
+      .row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+      .row input.room { flex: 1; padding: 6px 8px; background: #1b1b1b; color: #fff; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; }
+      .row input.color { width: 38px; height: 28px; padding: 0; border: none; background: transparent; }
+      .row button.remove { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.28); border-radius: 4px; padding: 4px 6px; cursor: pointer; }
+      .presets { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+      .presets span { font-size: 12px; color: #bdbdbd; }
+      .preset-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; cursor: pointer; }
+      .status-row { display:flex; align-items:center; gap:8px; margin:6px 0; }
+      .status-row .light { width:10px; height:10px; border-radius:50%; background:#6c757d; box-shadow:0 0 0 2px rgba(255,255,255,.08) inset; }
+      .status-row .light.ok { background:#28a745; }
+      .status-row .light.warn { background:#ffc107; }
+      .status-row .light.err { background:#dc3545; }
+      .status-text { font-size:12px; color:#bdbdbd; }
+      button.primary { width: 100%; padding: 8px 10px; background: #007bff; border: none; color: #fff; border-radius: 6px; cursor: pointer; }
+      button.primary:hover { filter: brightness(1.05); }
+      @media (max-width: 900px) { #app { flex-direction: column; } #sidebar { width: 100%; } #sidebar.closed { transform: translateY(calc(100% - 32px)); } }
     </style>
   </head>
   <body>
-    <div id="toolbar">
-      <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
-        <label>视频源:</label>
-        <input id="videoInput" placeholder="房间ID/URL或m3u8" style="width:220px"/>
-        <label>音频源:</label>
-        <input id="audioInput" placeholder="房间ID/URL或m3u8" style="width:220px"/>
-        <label>弹幕房间(逗号分隔):</label>
-        <input id="dmRooms" placeholder="如: 111,222" style="width:200px"/>
-        <label>颜色映射 room=#RRGGBB (空格分隔):</label>
-        <input id="dmColors" placeholder="111=#FF5F5F 222=#5F95FF" style="width:240px"/>
-        <button id="applyBtn">应用</button>
+    <div id="app">
+      <div id="main">
+        <div id="dplayer"></div>
+        <canvas id="customDmCanvas"></canvas>
+      </div>
+      <div id="sidebar" class="open">
+        <div class="sidebar-header">
+          <span>配置</span>
+          <button id="toggleSidebarBtn" title="收起/展开">❯</button>
+        </div>
+        <div class="sidebar-content">
+          <section class="block">
+            <h3>直播源</h3>
+            <div class="form-row">
+              <label>视频源</label>
+              <input id="videoInput" placeholder="房间ID/URL或m3u8"/>
+            </div>
+            <div class="form-row">
+              <label>音频源</label>
+              <input id="audioInput" placeholder="房间ID/URL或m3u8"/>
+            </div>
+            <div class="form-row">
+              <label>播放模式</label>
+              <select id="playMode">
+                <option value="low">低延迟</option>
+                <option value="stable">稳定</option>
+              </select>
+            </div>
+          </section>
+          <section class="block">
+            <h3>运行状态</h3>
+            <div class="status-row"><span>视频</span><div id="lightVideo" class="light"></div><span id="textVideo" class="status-text">未启动</span></div>
+            <div class="status-row"><span>弹幕</span><div id="lightDM" class="light"></div><span id="textDM" class="status-text">未连接</span></div>
+          </section>
+          <section class="block">
+            <h3>弹幕来源与颜色</h3>
+            <div id="dmSourceList"></div>
+            <button id="addSourceBtn" style="margin-top:6px;">添加来源</button>
+            <div class="presets">
+              <span>预设颜色:</span>
+              <div class="preset-dot" data-color="#000000" style="background:#000000;"></div>
+              <div class="preset-dot" data-color="#007bff" style="background:#007bff;"></div>
+              <div class="preset-dot" data-color="#ff3b30" style="background:#ff3b30;"></div>
+              <div class="preset-dot" data-color="#28a745" style="background:#28a745;"></div>
+              <div class="preset-dot" data-color="#ffcc00" style="background:#ffcc00;"></div>
+            </div>
+          </section>
+          <section class="block">
+            <h3>弹幕渲染</h3>
+            <div class="row" style="justify-content:space-between;">
+              <label style="margin:0;">使用自渲染弹幕（彩色边框）</label>
+              <input id="useCustomDm" type="checkbox" checked>
+            </div>
+          </section>
+          <div class="row" style="gap:8px;">
+            <button id="applyBtn" class="primary" style="flex:1;">开始</button>
+            <button id="stopBtn" style="flex:1; display:none; background:#dc3545; border:none; color:#fff; border-radius:6px; padding:8px 10px; cursor:pointer;">停止</button>
+          </div>
+        </div>
       </div>
     </div>
-
-    <div id="dplayer"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js"></script>
     <script>
       const m3u8Url = new URLSearchParams(location.search).get('src') || '/out/mixed/playlist.m3u8';
       const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/danmaku';
+      const hexToInt = (hex) => {
+        try {
+          const s = String(hex || '#ffffff').replace('#', '');
+          const n = parseInt(s, 16);
+          return Number.isFinite(n) ? n : 0xffffff;
+        } catch { return 0xffffff; }
+      };
+
+      // 运行状态与UI控制
+      let isRunning = false;
+      function setRunning(on) {
+        isRunning = !!on;
+        const videoInput = document.getElementById('videoInput');
+        const audioInput = document.getElementById('audioInput');
+        const dmSourceList = document.getElementById('dmSourceList');
+        const addSourceBtn = document.getElementById('addSourceBtn');
+        const applyBtn = document.getElementById('applyBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        if (videoInput) videoInput.disabled = isRunning;
+        if (audioInput) audioInput.disabled = isRunning;
+        if (addSourceBtn) addSourceBtn.disabled = isRunning;
+        if (dmSourceList) {
+          dmSourceList.querySelectorAll('input,button.remove').forEach(el => { el.disabled = isRunning; });
+        }
+        if (applyBtn) applyBtn.style.display = isRunning ? 'none' : 'inline-block';
+        if (stopBtn) stopBtn.style.display = isRunning ? 'inline-block' : 'none';
+        // 预设颜色禁用点击
+        document.querySelectorAll('.preset-dot').forEach(dot => {
+          dot.style.pointerEvents = isRunning ? 'none' : 'auto';
+          dot.style.opacity = isRunning ? '0.6' : '1';
+        });
+      }
+      function setVideoStatus(kind) {
+        const light = document.getElementById('lightVideo');
+        const text = document.getElementById('textVideo');
+        if (!light || !text) return;
+        light.className = 'light';
+        if (kind === 'ok') { light.classList.add('ok'); text.textContent = '获取中'; }
+        else if (kind === 'warn') { light.classList.add('warn'); text.textContent = '重连中'; }
+        else if (kind === 'err') { light.classList.add('err'); text.textContent = '异常'; }
+        else { text.textContent = '未启动'; }
+      }
+      function setDMStatus(kind) {
+        const light = document.getElementById('lightDM');
+        const text = document.getElementById('textDM');
+        if (!light || !text) return;
+        light.className = 'light';
+        if (kind === 'ok') { light.classList.add('ok'); text.textContent = '已连接'; }
+        else if (kind === 'warn') { light.classList.add('warn'); text.textContent = '重连中'; }
+        else if (kind === 'err') { light.classList.add('err'); text.textContent = '异常'; }
+        else { text.textContent = '未连接'; }
+      }
 
       const dp = new DPlayer({
         container: document.getElementById('dplayer'),
@@ -48,18 +175,39 @@
       });
 
       // HLS 支持
-      if (!dp.video.canPlayType('application/vnd.apple.mpegurl') && Hls.isSupported()) {
-        // 调整 HLS 缓冲：适度增加 backBuffer 与 liveSync，降低卡顿
-        const hls = new Hls({
-          maxBufferLength: 10,
-          maxMaxBufferLength: 30,
-          liveSyncDuration: 3,
-          liveMaxLatencyDuration: 10,
-          backBufferLength: 10,
-          liveBackBufferLength: 6,
+      let hls = null;
+      let lastFragAt = 0;
+      const WARN_GRACE_MS = 6000;
+      function initHls(playMode) {
+        if (!Hls.isSupported()) return null;
+        const isLow = playMode !== 'stable';
+        const conf = {
+          maxBufferLength: isLow ? 10 : 30,
+          maxMaxBufferLength: isLow ? 30 : 120,
+          liveSyncDuration: isLow ? 3 : 6,
+          liveMaxLatencyDuration: isLow ? 10 : 20,
+          backBufferLength: isLow ? 10 : 20,
+          liveBackBufferLength: isLow ? 6 : 12,
+        };
+        const inst = new Hls(conf);
+        inst.loadSource(m3u8Url);
+        inst.attachMedia(dp.video);
+        inst.on(Hls.Events.MANIFEST_PARSED, () => { if (isRunning) { lastFragAt = Date.now(); setVideoStatus('ok'); } });
+        inst.on(Hls.Events.FRAG_LOADED,     () => { if (isRunning) { lastFragAt = Date.now(); setVideoStatus('ok'); } });
+        inst.on(Hls.Events.ERROR, (_e, data) => {
+          if (!isRunning) return;
+          if (data && data.fatal) { setVideoStatus('err'); return; }
+          if (Date.now() - lastFragAt > WARN_GRACE_MS) setVideoStatus('warn');
         });
-        hls.loadSource(m3u8Url);
-        hls.attachMedia(dp.video);
+        return inst;
+      }
+      if (!dp.video.canPlayType('application/vnd.apple.mpegurl') && Hls.isSupported()) {
+        hls = initHls(document.getElementById('playMode').value);
+      } else {
+        // 原生播放事件作为状态指示（带宽裕判断）
+        dp.video.addEventListener('playing', () => { if (isRunning) { lastFragAt = Date.now(); setVideoStatus('ok'); } });
+        dp.video.addEventListener('waiting', () => { if (isRunning && Date.now() - lastFragAt > WARN_GRACE_MS) setVideoStatus('warn'); });
+        dp.video.addEventListener('error', () => { if (isRunning) setVideoStatus('err'); });
       }
 
       // 动态注入弹幕（通过WS实时接收）
@@ -67,50 +215,176 @@
       let ws;
       function connectWS() {
         ws = new WebSocket(wsUrl);
+        ws.onopen = () => { if (isRunning) setDMStatus('ok'); };
         ws.onmessage = (ev) => {
           try {
             const data = JSON.parse(ev.data);
-            const text = `[${data.room_id}] ${data.uname}: ${data.msg}`;
-            const color = data.color || '#ffffff';
-            const payload = { text, color, type: 'right', author: data.uname, time: dp.video.currentTime || 0 };
-            if (dp.danmaku && typeof dp.danmaku.draw === 'function') {
-              dp.danmaku.draw(payload);
+            const text = data.msg || '';
+            const colorHex = data.color || '#ffffff';
+            const colorInt = hexToInt(colorHex);
+            const nowTime = dp.video && typeof dp.video.currentTime === 'number' ? dp.video.currentTime : 0;
+            const useCustom = document.getElementById('useCustomDm') && document.getElementById('useCustomDm').checked;
+            if (!useCustom && dp.danmaku && typeof dp.danmaku.draw === 'function') {
+              // 优先对象格式（color使用hex），再回退number与数组格式
+              let drawn = false;
+              try { dp.danmaku.draw({ text, color: colorHex, type: 0, time: nowTime }); drawn = true; } catch {}
+              if (!drawn) { try { dp.danmaku.draw({ text, color: colorInt, type: 0, time: nowTime }); drawn = true; } catch {} }
+              if (!drawn) { try { dp.danmaku.draw([nowTime, 0, colorInt, '', text]); drawn = true; } catch {} }
             } else if (dp.danmaku && typeof dp.danmaku.send === 'function') {
               // 一些版本支持 send 注入到内存池
-              dp.danmaku.send(payload);
+              const sendPayload = { id: 'mixed-live-local', author: '', text, color: colorHex, type: 0, time: nowTime };
+              dp.danmaku.send(sendPayload);
+            } else if (useCustom) {
+              // 自渲染：将弹幕加入渲染队列
+              pushCustomDanmaku(text, colorHex);
             }
+            if (isRunning) setDMStatus('ok');
           } catch {}
         };
-        ws.onclose = () => setTimeout(connectWS, 1000);
+        ws.onerror = () => { if (isRunning) setDMStatus('err'); };
+        ws.onclose = () => { if (isRunning) setDMStatus('warn'); setTimeout(connectWS, 1000); };
       }
       connectWS();
 
-      // UI: 应用表单 -> 调后端 API
+      // 侧栏逻辑与配置交互
       const $ = (id) => document.getElementById(id);
-      $('applyBtn').onclick = async () => {
-        const audio = $('audioInput').value.trim() || '';
-        const video = $('videoInput').value.trim() || '';
-        const rooms = ($('dmRooms').value.trim() || '').split(',').map(s => s.trim()).filter(Boolean);
-        const colorsPairs = ($('dmColors').value.trim() || '').split(/\s+/).filter(Boolean);
-        const colors = {};
-        for (const kv of colorsPairs) {
-          const i = kv.indexOf('=');
-          if (i > 0) {
-            colors[kv.slice(0, i)] = kv.slice(i + 1);
+      const sidebar = $('sidebar');
+      const toggleBtn = $('toggleSidebarBtn');
+      toggleBtn.onclick = () => {
+        const closed = sidebar.classList.toggle('closed');
+        toggleBtn.textContent = closed ? '❮' : '❯';
+      };
+
+      const dmSourceList = $('dmSourceList');
+      const addSourceBtn = $('addSourceBtn');
+      let activeColorInput = null;
+      function addSourceRow(room = '', color = '#ffffff') {
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = `
+          <input class="room" placeholder="房间ID/URL" value="${room.replace(/"/g, '&quot;')}">
+          <input class="color" type="color" value="${color}">
+          <button class="remove" title="删除">✕</button>
+        `;
+        const roomInput = row.querySelector('input.room');
+        const colorInput = row.querySelector('input.color');
+        const removeBtn = row.querySelector('button.remove');
+        colorInput.addEventListener('focus', () => { activeColorInput = colorInput; });
+        roomInput.addEventListener('focus', () => { activeColorInput = colorInput; });
+        removeBtn.onclick = () => { dmSourceList.removeChild(row); };
+        dmSourceList.appendChild(row);
+      }
+      function getSources() {
+        const rows = Array.from(dmSourceList.querySelectorAll('.row'));
+        return rows.map(r => ({
+          room: (r.querySelector('input.room').value || '').trim(),
+          color: (r.querySelector('input.color').value || '#ffffff').trim(),
+        })).filter(x => x.room.length > 0);
+      }
+      addSourceBtn.onclick = () => addSourceRow('', '#ffffff');
+      // 初始给一行
+      addSourceRow('', '#ffffff');
+
+      // 预设颜色点选：作用于最近激活的颜色输入；若无，作用于最后一行
+      document.querySelectorAll('.preset-dot').forEach(dot => {
+        dot.addEventListener('click', () => {
+          if (isRunning) return;
+          const c = dot.getAttribute('data-color');
+          if (activeColorInput) {
+            activeColorInput.value = c;
+          } else {
+            const last = dmSourceList.querySelector('input.color:last-of-type');
+            if (last) last.value = c;
           }
-        }
+        });
+      });
+
+      // 应用配置 -> 后端 API
+      $('applyBtn').onclick = async () => {
+        const audio = ($('audioInput').value || '').trim();
+        const video = ($('videoInput').value || '').trim();
+        const playMode = (document.getElementById('playMode').value || 'low');
+        const srcs = getSources();
+        const rooms = srcs.map(s => s.room);
+        const colors = {};
+        for (const s of srcs) colors[s.room] = s.color || '#ffffff';
         try {
-          const r1 = await fetch('/api/mix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ audio, video, output_type: 'hls', low_latency: true, transcode_video: false }) });
+          const isLow = playMode !== 'stable';
+          const r1 = await fetch('/api/mix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ audio, video, output_type: 'hls', low_latency: isLow, transcode_video: !isLow }) });
           if (!r1.ok) throw new Error('mix failed');
           await r1.json();
           const r2 = await fetch('/api/danmaku/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rooms, colors }) });
           if (!r2.ok) throw new Error('dm start failed');
           await r2.json();
-          // 更新播放器到新流（本项目固定输出路径，直接reload确保hls重连）
-          location.reload();
+          setRunning(true);
+          setVideoStatus('warn');
+          setDMStatus('warn');
+          try {
+            if (hls) { try { hls.destroy(); } catch {}; }
+            if (!dp.video.canPlayType('application/vnd.apple.mpegurl') && Hls.isSupported()) {
+              hls = initHls(playMode);
+            }
+          } catch {}
+          try { if (dp && dp.play) dp.play(); } catch {}
         } catch (e) {
           alert('启动失败: ' + (e && e.message ? e.message : e));
         }
+      };
+
+      // 自渲染弹幕：简单右向左滚动，描边颜色来自 colorHex
+      const canvas = document.getElementById('customDmCanvas');
+      const ctx = canvas.getContext('2d');
+      function resizeCanvas() {
+        if (!canvas) return;
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = Math.floor(rect.width);
+        canvas.height = Math.floor(rect.height);
+      }
+      window.addEventListener('resize', resizeCanvas);
+      const dmQueue = [];
+      function pushCustomDanmaku(text, colorHex) {
+        if (!canvas) return;
+        const fontSize = Math.max(18, Math.floor(canvas.height / 24));
+        ctx.save();
+        ctx.font = `${fontSize}px sans-serif`;
+        const textWidth = ctx.measureText(text).width;
+        ctx.restore();
+        const y = Math.max(fontSize + 4, Math.random() * Math.max(1, canvas.height - fontSize - 8));
+        dmQueue.push({ text, colorHex, x: canvas.width + 20, y, speed: 1.2 + Math.random() * 0.8, fontSize, textWidth });
+      }
+      function renderLoop() {
+        requestAnimationFrame(renderLoop);
+        if (!document.getElementById('useCustomDm')?.checked) { return; }
+        resizeCanvas();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (const item of dmQueue) {
+          item.x -= item.speed * 2.0;
+          ctx.lineWidth = Math.max(2, Math.floor(item.fontSize / 9));
+          ctx.strokeStyle = item.colorHex || '#ffffff';
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `${item.fontSize}px sans-serif`;
+          ctx.strokeText(item.text, item.x, item.y);
+          ctx.fillText(item.text, item.x, item.y);
+        }
+        // 移除已经完全离开屏幕的弹幕
+        for (let i = dmQueue.length - 1; i >= 0; i--) {
+          if (dmQueue[i].x + dmQueue[i].textWidth < -40) dmQueue.splice(i, 1);
+        }
+      }
+      renderLoop();
+
+      // 停止：调用后端 /api/stop 并恢复表单
+      document.getElementById('stopBtn').onclick = async () => {
+        try {
+          const r = await fetch('/api/stop', { method: 'POST' });
+          if (!r.ok) throw new Error('stop failed');
+        } catch (e) {
+          // 忽略错误，仍然本地复位
+        }
+        setRunning(false);
+        setVideoStatus();
+        setDMStatus();
+        try { if (ws && ws.readyState === WebSocket.OPEN) ws.close(); } catch {}
       };
     </script>
   </body>
