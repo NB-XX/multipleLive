@@ -1,4 +1,5 @@
 # MultipleLive - 前端直连混合直播工具
+<img width="1935" height="1222" alt="PixPin_2025-10-15_16-06-46" src="https://github.com/user-attachments/assets/4ab0692a-3e65-4986-9b25-09fbdf12ac7e" />
 
 ## 功能
 - **前端音画混合**：视频流与音频流分别直连 B 站 m3u8，前端通过双播放器合成（视频静音 + 隐藏音频），音频流音量独立可调。
