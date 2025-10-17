@@ -64,6 +64,38 @@ python -m app.main
 - 前端：DPlayer（播放器 + 弹幕）、hls.js（HLS 播放）、原生 Web API（音频独立控制）
 - 架构：模块化分层（routes/services/state）、前端直连音画混合、无服务端转码
 
+## 打包发布
+使用 [pyfuze](https://github.com/pyfuze/pyfuze) 打包为单文件可执行程序：
+
+### Online 模式（推荐）
+生成轻量级可执行文件，首次运行需要网络连接下载依赖：
+```bash
+# 设置代理（如需要）
+$env:HTTP_PROXY="http://127.0.0.1:7890"
+$env:HTTPS_PROXY="http://127.0.0.1:7890"
+
+# 打包（生成 dist/MultipleLive）
+uvx pyfuze . --mode online --entry app/main.py --reqs requirements.txt --include web --include blivedm --exclude bilibili_live_api.py --exclude __pycache__ --output-name MultipleLive
+
+# 运行（首次需要网络下载依赖）
+.\dist\MultipleLive
+```
+
+### Bundle 模式（离线）
+生成包含 Python + 依赖的完整可执行文件（体积较大）：
+```bash
+# 删除 blivedm/.git 目录（避免权限问题）
+Remove-Item -Recurse -Force "blivedm\.git"
+
+# 打包
+uvx pyfuze . --mode bundle --entry app/main.py --reqs requirements.txt --include web --include blivedm --exclude bilibili_live_api.py --exclude __pycache__ --output-name MultipleLive
+
+# 运行
+.\dist\MultipleLive
+```
+
+**注意**：Online 模式首次运行需要网络连接下载 Python 和依赖；Bundle 模式体积较大但完全离线运行。
+
 ## 注意事项
 - 原画需登录 B 站账号并有相应权限；部分房间即使带 SESSDATA 也可能仅返回较低画质（B 站限制）。
-- 不同房间的码率/时基可能不同，音画同步受网络抖动影响；可通过音量控制微调听感。
+- 不同房间的码率/时基可能不同，音画同步受网络抖动影响；可通过"同步控制"版块的延迟监控与偏移调节实现音画对齐。

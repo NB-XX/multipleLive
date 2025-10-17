@@ -140,8 +140,8 @@
               <div>差值: <span id="diffDelayText" style="font-weight:600;">--</span></div>
             </div>
             <div class="form-row">
-              <label>音频时间偏移 <span id="offsetLabel">0.0s</span></label>
-              <input id="offsetSlider" type="range" min="-50" max="50" value="0" step="1" style="height:auto;padding:0;"/>
+              <label>视频时间偏移 <span id="offsetLabel">0.0s</span></label>
+              <input id="offsetSlider" type="range" min="-100" max="100" value="0" step="1" style="height:auto;padding:0;"/>
             </div>
             <button id="autoAlignBtn" class="btn btn-block" style="margin-top:8px;">自动对齐</button>
           </section>
@@ -441,12 +441,12 @@
 
       offsetSlider.oninput = () => {
         const val = parseInt(offsetSlider.value || '0', 10);
-        const offsetSec = val / 10.0; // -5.0 ~ +5.0
+        const offsetSec = val / 10.0; // -10.0 ~ +10.0
         offsetLabel.textContent = (offsetSec >= 0 ? '+' : '') + offsetSec.toFixed(1) + 's';
-        if (audioEl && isRunning) {
+        if (dp.video && isRunning) {
           try {
             const delta = offsetSec - cumulativeOffset;
-            audioEl.currentTime += delta;
+            dp.video.currentTime += delta;
             cumulativeOffset = offsetSec;
           } catch {}
         }
@@ -459,8 +459,8 @@
           const aDelay = getDelay(audioEl);
           if (vDelay !== null && aDelay !== null) {
             const diff = aDelay - vDelay;
-            // 调整音频 currentTime 使其与视频对齐
-            audioEl.currentTime -= diff;
+            // 调整视频 currentTime 使其与音频对齐
+            dp.video.currentTime += diff;
             // 重置滑块与累积偏移
             offsetSlider.value = '0';
             offsetLabel.textContent = '0.0s';
