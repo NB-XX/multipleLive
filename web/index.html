@@ -72,8 +72,20 @@
       .dplayer .dplayer-danmaku .dplayer-danmaku-move,
       .dplayer .dplayer-danmaku-move { animation-duration: 9s !important; }
     </style>
+    <!-- Electron 桌面应用样式 -->
+    <link rel="stylesheet" href="../electron/styles.css">
   </head>
   <body>
+    <!-- Electron 自定义标题栏 -->
+    <div class="electron-titlebar" id="electronTitlebar">
+      <div class="title">MultipleLive Desktop Player</div>
+      <div class="window-controls">
+        <button class="control-btn minimize" id="minimizeBtn" title="最小化">−</button>
+        <button class="control-btn maximize" id="maximizeBtn" title="最大化/还原">□</button>
+        <button class="control-btn close" id="closeBtn" title="关闭">×</button>
+      </div>
+    </div>
+    
     <div id="app">
       <div id="main">
         <div id="dplayer"></div>
@@ -143,7 +155,7 @@
               <label>视频时间偏移 <span id="offsetLabel">0.0s</span></label>
               <input id="offsetSlider" type="range" min="-100" max="100" value="0" step="1" style="height:auto;padding:0;"/>
             </div>
-            <button id="autoAlignBtn" class="btn btn-block" style="margin-top:8px;">自动对齐</button>
+            <button id="autoAlignBtn" class="btn btn-block" style="margin-top:8px;">手动刷新</button>
           </section>
           
           <button id="applyBtn" class="btn btn-primary btn-block" style="margin-bottom:10px;">开始</button>
@@ -156,6 +168,44 @@
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js"></script>
     <script>
+      // Electron 窗口控制
+      if (typeof window.electronAPI !== 'undefined') {
+        document.addEventListener('DOMContentLoaded', () => {
+          // 窗口控制按钮事件
+          document.getElementById('minimizeBtn').addEventListener('click', () => {
+            window.electronAPI.minimizeWindow();
+          });
+          
+          document.getElementById('maximizeBtn').addEventListener('click', () => {
+            window.electronAPI.maximizeWindow();
+          });
+          
+          document.getElementById('closeBtn').addEventListener('click', () => {
+            window.electronAPI.closeWindow();
+          });
+          
+          // 键盘快捷键
+          document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+              switch (e.key) {
+                case 't':
+                  e.preventDefault();
+                  window.electronAPI.toggleAlwaysOnTop();
+                  break;
+                case 'm':
+                  e.preventDefault();
+                  window.electronAPI.minimizeWindow();
+                  break;
+              }
+            }
+            if (e.key === 'F11') {
+              e.preventDefault();
+              window.electronAPI.toggleFullscreen();
+            }
+          });
+        });
+      }
+      
       const m3u8Url = new URLSearchParams(location.search).get('src') || '/out/mixed/playlist.m3u8';
        const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/danmaku';
       const hexToInt = (hex) => {
@@ -455,17 +505,35 @@
       autoAlignBtn.onclick = () => {
         if (!isRunning || !audioEl || !dp.video) return;
         try {
-          const vDelay = getDelay(dp.video);
-          const aDelay = getDelay(audioEl);
-          if (vDelay !== null && aDelay !== null) {
-            const diff = aDelay - vDelay;
-            // 调整视频 currentTime 使其与音频对齐
-            dp.video.currentTime += diff;
-            // 重置滑块与累积偏移
-            offsetSlider.value = '0';
-            offsetLabel.textContent = '0.0s';
-            cumulativeOffset = 0;
+          // 强制跳转到最新片段 - 视频
+          if (hls) {
+            hls.startLoad(); // 重新开始加载最新播放列表
+            // 跳转到最新可播放位置
+            if (dp.video.duration && !isNaN(dp.video.duration)) {
+              dp.video.currentTime = dp.video.duration - 1; // 跳转到最新位置
+            }
           }
+          
+          // 强制跳转到最新片段 - 音频
+          if (audioHls) {
+            audioHls.startLoad(); // 重新开始加载最新播放列表
+            // 跳转到最新可播放位置
+            if (audioEl.duration && !isNaN(audioEl.duration)) {
+              audioEl.currentTime = audioEl.duration - 1; // 跳转到最新位置
+            }
+          } else if (audioEl.src) {
+            // 对于原生音频元素，重新加载源
+            const currentSrc = audioEl.src;
+            audioEl.src = '';
+            audioEl.load();
+            audioEl.src = currentSrc;
+            audioEl.play().catch(() => {});
+          }
+          
+          // 重置滑块与累积偏移
+          offsetSlider.value = '0';
+          offsetLabel.textContent = '0.0s';
+          cumulativeOffset = 0;
         } catch {}
       };
 

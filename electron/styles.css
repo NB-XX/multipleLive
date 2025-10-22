@@ -1,0 +1,169 @@
+/* 自定义标题栏样式 */
+.electron-titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: linear-gradient(135deg, #1a283f 0%, #0b0e14 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  z-index: 1000;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.electron-titlebar .title {
+  color: #e6e7eb;
+  font-size: 14px;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.electron-titlebar .window-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.electron-titlebar .control-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #e6e7eb;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.electron-titlebar .control-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.electron-titlebar .control-btn.close:hover {
+  background: #ef4444;
+  color: white;
+}
+
+.electron-titlebar .control-btn.maximize:hover {
+  background: #22c55e;
+  color: white;
+}
+
+.electron-titlebar .control-btn.minimize:hover {
+  background: #f59e0b;
+  color: white;
+}
+
+/* 调整主内容区域，为标题栏留出空间 */
+body {
+  padding-top: 32px !important;
+}
+
+/* 调整侧边栏切换按钮位置，避免与标题栏冲突 */
+#sidebarToggle {
+  position: fixed !important;
+  right: 12px !important;
+  top: 44px !important; /* 调整到标题栏下方 */
+  z-index: 6 !important;
+  height: 36px !important;
+  width: 36px !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--panel-border) !important;
+  background: rgba(0,0,0,.35) !important;
+  color: var(--text-1) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  box-shadow: var(--elev) !important;
+  transition: all 0.2s ease !important;
+}
+
+#sidebarToggle:hover {
+  background: rgba(0,0,0,.5) !important;
+  border-color: rgba(255,255,255,.2) !important;
+}
+
+#sidebar.closed ~ #sidebarToggle {
+  right: 12px !important;
+}
+
+/* 调整侧边栏位置，避免与标题栏重叠 */
+#sidebar {
+  top: 32px !important;
+  height: calc(100vh - 32px) !important;
+  overflow: hidden !important; /* 防止侧边栏本身产生滚动条 */
+}
+
+/* 全屏时隐藏标题栏 */
+body.fullscreen .electron-titlebar {
+  display: none;
+}
+
+body.fullscreen {
+  padding-top: 0 !important;
+}
+
+body.fullscreen #sidebar {
+  top: 0 !important;
+  height: 100vh !important;
+}
+
+body.fullscreen #sidebarToggle {
+  top: 12px !important; /* 全屏时恢复到顶部 */
+}
+
+/* 置顶状态指示 */
+.electron-titlebar.always-on-top::after {
+  content: "📌";
+  position: absolute;
+  right: 100px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* 自定义滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* 隐藏页面主滚动条，只保留侧边栏滚动条 */
+body {
+  overflow: hidden !important;
+}
+
+/* 确保侧边栏内容可以滚动 */
+.sidebar-content {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
