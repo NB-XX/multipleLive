@@ -13,5 +13,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   
   // 版本信息
-  version: process.versions.electron
+  version: process.versions.electron,
+  
+  // 错误处理
+  onBackendError: (callback) => ipcRenderer.on('backend-error', callback),
+  removeBackendErrorListener: (callback) => ipcRenderer.removeListener('backend-error', callback)
 });

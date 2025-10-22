@@ -1,9 +1,198 @@
 const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, shell } = require('electron');
 const path = require('path');
+const { spawn } = require('child_process');
+const http = require('http');
 
 let mainWindow;
 let tray;
 let isAlwaysOnTop = false;
+let backendProcess = null;
+let healthCheckInterval = null;
+
+// 后端服务管理
+function startBackendService() {
+  return new Promise((resolve, reject) => {
+    try {
+      const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+      const backendPath = path.join(__dirname, '../app/main.py');
+      
+      console.log('启动Python后端服务...');
+      backendProcess = spawn(pythonPath, [backendPath], {
+        cwd: path.join(__dirname, '..'),
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+      });
+
+      let backendPort = 8090; // 默认端口
+      
+      backendProcess.stdout.on('data', (data) => {
+        const output = data.toString().trim();
+        console.log(`[后端] ${output}`);
+        
+        // 检测端口信息
+        const portMatch = output.match(/starting on http:\/\/127\.0\.0\.1:(\d+)/);
+        if (portMatch) {
+          backendPort = parseInt(portMatch[1]);
+          console.log(`检测到后端服务端口: ${backendPort}`);
+        }
+      });
+
+      backendProcess.stderr.on('data', (data) => {
+        console.error(`[后端错误] ${data.toString().trim()}`);
+      });
+
+      backendProcess.on('error', (error) => {
+        console.error('后端服务启动失败:', error);
+        reject(error);
+      });
+
+      backendProcess.on('exit', (code) => {
+        console.log(`后端服务退出，代码: ${code}`);
+        backendProcess = null;
+      });
+
+      // 等待服务启动并检测端口
+      setTimeout(async () => {
+        try {
+          // 尝试多个可能的端口
+          let port = null;
+          for (let p = 8090; p <= 8099; p++) {
+            try {
+              port = await checkBackendHealth(p);
+              console.log(`后端服务启动成功，端口: ${port}`);
+              resolve(port);
+              return;
+            } catch (e) {
+              continue;
+            }
+          }
+          throw new Error('无法连接到后端服务');
+        } catch (error) {
+          console.error('后端服务健康检查失败:', error);
+          reject(error);
+        }
+      }, 3000);
+
+    } catch (error) {
+      console.error('启动后端服务时出错:', error);
+      reject(error);
+    }
+  });
+}
+
+function stopBackendService() {
+  return new Promise((resolve) => {
+    if (backendProcess) {
+      console.log('正在停止后端服务...');
+      backendProcess.kill('SIGTERM');
+      
+      // 等待进程退出
+      const timeout = setTimeout(() => {
+        if (backendProcess) {
+          console.log('强制终止后端服务');
+          backendProcess.kill('SIGKILL');
+        }
+        resolve();
+      }, 5000);
+
+      backendProcess.on('exit', () => {
+        clearTimeout(timeout);
+        backendProcess = null;
+        console.log('后端服务已停止');
+        resolve();
+      });
+    } else {
+      resolve();
+    }
+  });
+}
+
+function checkBackendHealth(port = 8090) {
+  return new Promise((resolve, reject) => {
+    const req = http.get(`http://127.0.0.1:${port}/`, (res) => {
+      if (res.statusCode === 200) {
+        resolve(port);
+      } else {
+        reject(new Error(`HTTP ${res.statusCode}`));
+      }
+    });
+
+    req.on('error', (error) => {
+      reject(error);
+    });
+
+    req.setTimeout(3000, () => {
+      req.destroy();
+      reject(new Error('健康检查超时'));
+    });
+  });
+}
+
+function detectBackendPort() {
+  return new Promise((resolve) => {
+    // 尝试多个可能的端口
+    let port = null;
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    const tryPort = (p) => {
+      if (attempts >= maxAttempts) {
+        resolve(null);
+        return;
+      }
+      
+      checkBackendHealth(p).then(foundPort => {
+        resolve(foundPort);
+      }).catch(() => {
+        attempts++;
+        tryPort(p + 1);
+      });
+    };
+    
+    tryPort(8090);
+  });
+}
+
+function startHealthCheck() {
+  if (healthCheckInterval) {
+    clearInterval(healthCheckInterval);
+  }
+
+  healthCheckInterval = setInterval(async () => {
+    try {
+      // 尝试多个可能的端口
+      let port = null;
+      for (let p = 8090; p <= 8099; p++) {
+        try {
+          port = await checkBackendHealth(p);
+          break;
+        } catch (e) {
+          continue;
+        }
+      }
+      
+      if (!port) {
+        throw new Error('无法连接到后端服务');
+      }
+    } catch (error) {
+      console.warn('后端服务健康检查失败，尝试重启...', error.message);
+      try {
+        await stopBackendService();
+        await startBackendService();
+      } catch (restartError) {
+        console.error('重启后端服务失败:', restartError);
+        // 显示错误对话框
+        if (mainWindow) {
+          mainWindow.webContents.send('backend-error', {
+            message: '后端服务连接失败',
+            details: restartError.message,
+            suggestion: '请检查Python环境和依赖是否正确安装'
+          });
+        }
+      }
+    }
+  }, 10000); // 每10秒检查一次
+}
 
 function createWindow() {
   // 创建无边框窗口
@@ -29,6 +218,21 @@ function createWindow() {
   // 加载播放器页面
   const indexPath = path.join(__dirname, '../web/index.html');
   mainWindow.loadFile(indexPath);
+  
+  // 等待页面加载完成后设置后端端口
+  mainWindow.webContents.once('dom-ready', () => {
+    // 尝试检测后端服务端口
+    detectBackendPort().then(port => {
+      if (port) {
+        mainWindow.webContents.executeJavaScript(`
+          window.BACKEND_PORT = ${port};
+          console.log('设置后端端口:', ${port});
+        `);
+      }
+    }).catch(err => {
+      console.error('检测后端端口失败:', err);
+    });
+  });
 
   // 窗口加载完成后显示
   mainWindow.once('ready-to-show', () => {
@@ -209,12 +413,34 @@ ipcMain.handle('window-toggle-fullscreen', () => {
 });
 
 // 应用事件
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  try {
+    // 先启动后端服务
+    await startBackendService();
+    // 启动健康检查
+    startHealthCheck();
+    // 创建窗口
+    createWindow();
+  } catch (error) {
+    console.error('应用启动失败:', error);
+    // 显示错误对话框
+    const { dialog } = require('electron');
+    dialog.showErrorBox('启动失败', `无法启动后端服务: ${error.message}\n\n请检查:\n1. Python环境是否正确安装\n2. 依赖包是否已安装 (pip install -r requirements.txt)\n3. 端口8090是否被占用`);
+    app.quit();
+  }
+});
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
   // 在 macOS 上，除非用户用 Cmd + Q 确定地退出，
   // 否则绝大部分应用及其菜单栏会保持激活。
   if (process.platform !== 'darwin') {
+    // 停止健康检查
+    if (healthCheckInterval) {
+      clearInterval(healthCheckInterval);
+      healthCheckInterval = null;
+    }
+    // 停止后端服务
+    await stopBackendService();
     app.quit();
   }
 });
@@ -225,6 +451,23 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
+});
+
+// 应用退出前清理
+app.on('before-quit', async (event) => {
+  event.preventDefault();
+  
+  // 停止健康检查
+  if (healthCheckInterval) {
+    clearInterval(healthCheckInterval);
+    healthCheckInterval = null;
+  }
+  
+  // 停止后端服务
+  await stopBackendService();
+  
+  // 真正退出
+  app.exit(0);
 });
 
 // 防止多实例运行

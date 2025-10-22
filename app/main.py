@@ -9,13 +9,13 @@ root_dir = Path(__file__).resolve().parents[1]
 vendor_path = (root_dir / "vendor").as_posix()
 legacy_blivedm_path = (root_dir / "blivedm").as_posix()
 for p in (vendor_path, legacy_blivedm_path):
-    if p not in sys.path:
+    if Path(p).exists() and p not in sys.path:
         sys.path.insert(0, p)
 
-from app.routes.api import api_resolve, api_start_dm, api_stop  # noqa: E402
-from app.routes.static import index  # noqa: E402
-from app.routes.ws import ws_danmaku  # noqa: E402
-from app.state import AppState  # noqa: E402
+from routes.api import api_resolve, api_start_dm, api_stop  # noqa: E402
+from routes.static import index  # noqa: E402
+from routes.ws import ws_danmaku  # noqa: E402
+from state import AppState  # noqa: E402
 
 
 def create_app() -> web.Application:
@@ -64,7 +64,24 @@ def configure_logging() -> None:
     logging.getLogger('multiplelive').setLevel(logging.INFO)
 
 
+def find_available_port(start_port=8090, max_attempts=10):
+    """查找可用端口"""
+    import socket
+    for port in range(start_port, start_port + max_attempts):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('127.0.0.1', port))
+                return port
+        except OSError:
+            continue
+    raise RuntimeError(f"无法找到可用端口，尝试了 {max_attempts} 个端口")
+
 if __name__ == '__main__':
     configure_logging()
-    logging.info('MultipleLive server starting on http://127.0.0.1:8090')
-    web.run_app(create_app(), host='127.0.0.1', port=8090)
+    try:
+        port = find_available_port()
+        logging.info(f'MultipleLive server starting on http://127.0.0.1:{port}')
+        web.run_app(create_app(), host='127.0.0.1', port=port)
+    except Exception as e:
+        logging.error(f'服务器启动失败: {e}')
+        sys.exit(1)

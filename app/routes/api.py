@@ -5,9 +5,9 @@ from typing import Dict, List
 
 from aiohttp import web
 
-from app.services.danmaku_service import DanmakuItem
-from app.services.stream_resolver import pick_best_hls, resolve_room_id
-from app.state import AppState
+from services.danmaku_service import DanmakuItem
+from services.stream_resolver import pick_best_hls, resolve_room_id
+from state import AppState
 
 logger = logging.getLogger('multiplelive')
 

@@ -1,6 +1,6 @@
 from aiohttp import web
 
-from app.state import AppState
+from state import AppState
 
 
 async def ws_danmaku(req: web.Request) -> web.WebSocketResponse:

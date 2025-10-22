@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from aiohttp import web
 
-from app.services.danmaku_service import DanmakuCollector
+from services.danmaku_service import DanmakuCollector
 
 
 class AppState:

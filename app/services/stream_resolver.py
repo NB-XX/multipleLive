@@ -16,7 +16,7 @@ def get_room_id(url_or_id: str) -> int:
         raise ValueError("无效的直播间链接或ID")
 
 
-def _http_get_json(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 8,
+def _http_get_json(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 15,
                    retries: int = 3, backoff: float = 0.6) -> Dict[str, Any]:
     last_err: Optional[Exception] = None
     for i in range(retries):
@@ -33,10 +33,16 @@ def _http_get_json(url: str, headers: Optional[Dict[str, str]] = None, timeout: 
 
 def _build_headers(room_id: int, sessdata: Optional[str]) -> Dict[str, str]:
     headers: Dict[str, str] = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": f"https://live.bilibili.com/{room_id}",
         "Origin": "https://live.bilibili.com",
         "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-site",
     }
     token = sessdata or os.getenv("BILI_SESSDATA") or ""
     token = token.strip()

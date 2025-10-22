@@ -203,11 +203,87 @@
               window.electronAPI.toggleFullscreen();
             }
           });
+          
+          // 后端错误处理
+          window.electronAPI.onBackendError((event, errorData) => {
+            showErrorDialog(errorData);
+          });
+        });
+      }
+      
+      // 错误对话框显示函数
+      function showErrorDialog(errorData) {
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+          position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0,0,0,0.8); z-index: 10000;
+          display: flex; align-items: center; justify-content: center;
+          font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC", "Microsoft Yahei", sans-serif;
+        `;
+        
+        const content = document.createElement('div');
+        content.style.cssText = `
+          background: var(--panel-bg); border: 1px solid var(--panel-border);
+          border-radius: 12px; padding: 24px; max-width: 500px; width: 90%;
+          box-shadow: var(--elev); backdrop-filter: blur(12px);
+        `;
+        
+        content.innerHTML = `
+          <h3 style="margin: 0 0 16px 0; color: var(--danger); font-size: 18px;">⚠️ ${errorData.message}</h3>
+          <p style="margin: 0 0 12px 0; color: var(--text-2); font-size: 14px; line-height: 1.5;">
+            ${errorData.details}
+          </p>
+          <p style="margin: 0 0 20px 0; color: var(--muted); font-size: 13px; line-height: 1.4;">
+            ${errorData.suggestion}
+          </p>
+          <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button id="retryBtn" style="
+              padding: 8px 16px; border: 1px solid var(--accent); background: var(--accent);
+              color: white; border-radius: 8px; cursor: pointer; font-size: 14px;
+            ">重试连接</button>
+            <button id="closeDialogBtn" style="
+              padding: 8px 16px; border: 1px solid var(--panel-border); background: transparent;
+              color: var(--text-1); border-radius: 8px; cursor: pointer; font-size: 14px;
+            ">关闭</button>
+          </div>
+        `;
+        
+        dialog.appendChild(content);
+        document.body.appendChild(dialog);
+        
+        // 事件处理
+        document.getElementById('retryBtn').addEventListener('click', () => {
+          document.body.removeChild(dialog);
+          // 刷新页面重试
+          window.location.reload();
+        });
+        
+        document.getElementById('closeDialogBtn').addEventListener('click', () => {
+          document.body.removeChild(dialog);
+        });
+        
+        // 点击背景关闭
+        dialog.addEventListener('click', (e) => {
+          if (e.target === dialog) {
+            document.body.removeChild(dialog);
+          }
         });
       }
       
       const m3u8Url = new URLSearchParams(location.search).get('src') || '/out/mixed/playlist.m3u8';
-       const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/danmaku';
+      
+      // 动态获取后端服务地址
+      function getBackendUrl() {
+        const port = window.BACKEND_PORT || 8090;
+        return `http://127.0.0.1:${port}`;
+      }
+      
+      function getWsUrl() {
+        const port = window.BACKEND_PORT || 8090;
+        return `ws://127.0.0.1:${port}/ws/danmaku`;
+      }
+      
+      const wsUrl = getWsUrl();
       const hexToInt = (hex) => {
         try {
           const s = String(hex || '#ffffff').replace('#', '');
@@ -593,7 +669,7 @@
         // 先解析所有弹幕房间为真实ID，再构造 colors 映射
         const resolveRoomOnly = async (source) => {
           try {
-            const res = await fetch('/api/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source }) });
+            const res = await fetch(getBackendUrl() + '/api/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source }) });
             const j = await res.json();
             if (j.ok && j.room_id) return j.room_id;
           } catch {}
@@ -621,7 +697,7 @@
              const resolve = async (source) => {
                // 可从 localStorage 读取 SESSDATA 以请求原画
                const sessdata = (localStorage.getItem('bili_sessdata') || '').trim();
-               const res = await fetch('/api/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source, sessdata }) });
+               const res = await fetch(getBackendUrl() + '/api/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source, sessdata }) });
                const j = await res.json();
                if (!j.ok) throw new Error(j.error || 'resolve failed');
                return j.url;
@@ -669,7 +745,7 @@
                await audioEl.play().catch(()=>{});
              } catch {}
            }
-          const r2 = await fetch('/api/danmaku/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rooms, colors }) });
+          const r2 = await fetch(getBackendUrl() + '/api/danmaku/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rooms, colors }) });
           if (!r2.ok) throw new Error('dm start failed');
           await r2.json();
           setRunning(true);
@@ -678,7 +754,31 @@
           // 固定前端模式，无需后续切换
           try { if (dp && dp.play) dp.play(); } catch {}
         } catch (e) {
-          alert('启动失败: ' + (e && e.message ? e.message : e));
+          console.error('启动失败:', e);
+          let errorMessage = '启动失败';
+          let errorDetails = '';
+          let suggestion = '';
+          
+          if (e && e.message) {
+            if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+              errorMessage = '网络连接失败';
+              errorDetails = '无法连接到后端服务，请检查服务是否正常运行';
+              suggestion = '请确保Python后端服务已启动，或尝试重启应用程序';
+            } else if (e.message.includes('resolve failed')) {
+              errorMessage = '直播源解析失败';
+              errorDetails = e.message;
+              suggestion = '请检查直播源URL是否正确，或尝试其他直播源';
+            } else {
+              errorDetails = e.message;
+              suggestion = '请检查网络连接和配置是否正确';
+            }
+          }
+          
+          showErrorDialog({
+            message: errorMessage,
+            details: errorDetails,
+            suggestion: suggestion
+          });
         }
       };
 
@@ -687,7 +787,7 @@
       // 停止：调用后端 /api/stop 并恢复表单
        document.getElementById('stopBtn').onclick = async () => {
         try {
-          const r = await fetch('/api/stop', { method: 'POST' });
+          const r = await fetch(getBackendUrl() + '/api/stop', { method: 'POST' });
           if (!r.ok) throw new Error('stop failed');
         } catch (e) {
           // 忽略错误，仍然本地复位
